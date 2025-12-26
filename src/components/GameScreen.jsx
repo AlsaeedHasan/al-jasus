@@ -10,7 +10,7 @@ import {
   Hand,
 } from "lucide-react";
 import { useGame } from "../context/GameContext";
-import { Button, Card, Timer, RoleCard } from "./ui";
+import { Button, Card, Timer, RoleCard, PlayerName } from "./ui";
 
 // Distribution Screen - Pass and Play
 function DistributionScreen() {
@@ -118,7 +118,7 @@ function DistributionScreen() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
               >
-                {currentPlayer}
+                <PlayerName name={currentPlayer} />
               </motion.div>
 
               <motion.p
@@ -271,15 +271,16 @@ function GameplayScreen() {
               <p className="text-white/60 text-sm mb-2">الدور الحالي</p>
               <div className="flex items-center justify-center gap-3">
                 <span className="text-xl font-bold text-purple-400">
-                  {state.currentAsker}
+                  <PlayerName name={state.currentAsker} />
                 </span>
                 <ArrowLeft size={24} className="text-orange-400" />
                 <span className="text-xl font-bold text-orange-400">
-                  {state.currentTarget}
+                  <PlayerName name={state.currentTarget} />
                 </span>
               </div>
               <p className="text-white/40 text-sm mt-2">
-                {state.currentAsker} يسأل {state.currentTarget}
+                <PlayerName name={state.currentAsker} /> يسأل{" "}
+                <PlayerName name={state.currentTarget} />
               </p>
 
               <Button

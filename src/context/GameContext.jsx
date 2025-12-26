@@ -6,12 +6,33 @@ import {
   useCallback,
   useRef,
 } from "react";
-import {
-  gameData,
-  getRandomCategory,
-  getRandomWord,
-  getRandomPair,
-} from "../data/words";
+import { gameData } from "../data/words";
+
+// App version for localStorage migration
+const CURRENT_VERSION = "v2.0";
+
+// Helper functions for game data
+const getRandomCategory = (mode) => {
+  const categories = gameData[mode];
+  return categories[Math.floor(Math.random() * categories.length)];
+};
+
+const getRandomWord = (category) => {
+  return category.words[Math.floor(Math.random() * category.words.length)];
+};
+
+const getRandomPair = (category) => {
+  return category.pairs[Math.floor(Math.random() * category.pairs.length)];
+};
+
+const getCategoryByName = (mode, categoryName) => {
+  return gameData[mode].find((c) => c.category === categoryName);
+};
+
+// Get all category names for a mode
+const getAllCategories = (mode) => {
+  return gameData[mode].map((c) => c.category);
+};
 
 // Helper to safely get from localStorage
 const getStoredPlayers = () => {
@@ -41,10 +62,23 @@ const getStoredSettings = () => {
   return null;
 };
 
+const getStoredScores = () => {
+  try {
+    const stored = localStorage.getItem("aljasus_scores");
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error("Error loading scores from localStorage:", e);
+  }
+  return {};
+};
+
 // Create initial state with localStorage values (lazy initialization)
 const createInitialState = () => {
   const storedPlayers = getStoredPlayers();
   const storedSettings = getStoredSettings();
+  const storedScores = getStoredScores();
 
   return {
     // Player Management - LOAD FROM STORAGE
@@ -55,6 +89,12 @@ const createInitialState = () => {
     subMode: storedSettings?.subMode || "freeTalk",
     timerDuration: storedSettings?.timerDuration || 180,
     spyCount: storedSettings?.spyCount || 1,
+    targetScore: storedSettings?.targetScore || 200,
+    selectedGenre: storedSettings?.selectedGenre || "random",
+
+    // Scoring System
+    scores: storedScores,
+    roundNumber: 1,
 
     // Current Game State
     currentScreen: "home",
@@ -79,6 +119,8 @@ const createInitialState = () => {
     // Results
     spyGuess: null,
     gameResult: null,
+    roundScores: {}, // Points earned this round
+    gameWinner: null, // Player who reached target score
   };
 };
 
@@ -91,6 +133,8 @@ const ACTIONS = {
   SET_SUB_MODE: "SET_SUB_MODE",
   SET_TIMER_DURATION: "SET_TIMER_DURATION",
   SET_SPY_COUNT: "SET_SPY_COUNT",
+  SET_TARGET_SCORE: "SET_TARGET_SCORE",
+  SET_SELECTED_GENRE: "SET_SELECTED_GENRE",
   START_GAME: "START_GAME",
   SET_SCREEN: "SET_SCREEN",
   NEXT_PLAYER: "NEXT_PLAYER",
@@ -104,7 +148,10 @@ const ACTIONS = {
   COMPLETE_VOTING: "COMPLETE_VOTING",
   SET_SPY_GUESS: "SET_SPY_GUESS",
   SET_GAME_RESULT: "SET_GAME_RESULT",
+  CALCULATE_ROUND_SCORES: "CALCULATE_ROUND_SCORES",
+  START_NEXT_ROUND: "START_NEXT_ROUND",
   RESET_GAME: "RESET_GAME",
+  RESET_TOURNAMENT: "RESET_TOURNAMENT",
 };
 
 // Reducer
@@ -113,20 +160,32 @@ function gameReducer(state, action) {
     case ACTIONS.SET_PLAYERS:
       return { ...state, players: action.payload };
 
-    case ACTIONS.ADD_PLAYER:
+    case ACTIONS.ADD_PLAYER: {
       if (state.players.includes(action.payload) || !action.payload.trim()) {
         return state;
       }
-      return { ...state, players: [...state.players, action.payload.trim()] };
+      const newPlayers = [...state.players, action.payload.trim()];
+      // Initialize score for new player
+      const newScores = { ...state.scores, [action.payload.trim()]: 0 };
+      return { ...state, players: newPlayers, scores: newScores };
+    }
 
-    case ACTIONS.REMOVE_PLAYER:
-      return {
-        ...state,
-        players: state.players.filter((_, index) => index !== action.payload),
-      };
+    case ACTIONS.REMOVE_PLAYER: {
+      const playerToRemove = state.players[action.payload];
+      const newPlayers = state.players.filter(
+        (_, index) => index !== action.payload
+      );
+      // Remove score for deleted player
+      const newScores = { ...state.scores };
+      delete newScores[playerToRemove];
+      // Immediately update localStorage
+      localStorage.setItem("aljasus_players", JSON.stringify(newPlayers));
+      localStorage.setItem("aljasus_scores", JSON.stringify(newScores));
+      return { ...state, players: newPlayers, scores: newScores };
+    }
 
     case ACTIONS.SET_GAME_MODE:
-      return { ...state, gameMode: action.payload };
+      return { ...state, gameMode: action.payload, selectedGenre: "random" };
 
     case ACTIONS.SET_SUB_MODE:
       return { ...state, subMode: action.payload };
@@ -141,9 +200,22 @@ function gameReducer(state, action) {
     case ACTIONS.SET_SPY_COUNT:
       return { ...state, spyCount: action.payload };
 
+    case ACTIONS.SET_TARGET_SCORE:
+      return { ...state, targetScore: action.payload };
+
+    case ACTIONS.SET_SELECTED_GENRE:
+      return { ...state, selectedGenre: action.payload };
+
     case ACTIONS.START_GAME: {
       const { category, word, pair, spyIndices, imposterIndex } =
         action.payload;
+      // Initialize scores for all players if not exists
+      const initialScores = { ...state.scores };
+      state.players.forEach((player) => {
+        if (initialScores[player] === undefined) {
+          initialScores[player] = 0;
+        }
+      });
       return {
         ...state,
         currentScreen: "distribution",
@@ -159,6 +231,8 @@ function gameReducer(state, action) {
         spyGuess: null,
         gameResult: null,
         questionHistory: [],
+        roundScores: {},
+        scores: initialScores,
       };
     }
 
@@ -221,6 +295,88 @@ function gameReducer(state, action) {
     case ACTIONS.SET_GAME_RESULT:
       return { ...state, gameResult: action.payload };
 
+    case ACTIONS.CALCULATE_ROUND_SCORES: {
+      const { result, votes, spyIndices, imposterIndex, players, gameMode } =
+        action.payload;
+      const roundScores = {};
+      const newScores = { ...state.scores };
+
+      // Initialize round scores
+      players.forEach((player) => {
+        roundScores[player] = 0;
+      });
+
+      // Get the spy/imposter names
+      const culpritNames =
+        gameMode === "classic"
+          ? spyIndices.map((idx) => players[idx])
+          : [players[imposterIndex]];
+
+      if (result === "spy_caught" || result === "imposter_caught") {
+        // Citizens who voted for the spy get +100
+        Object.entries(votes).forEach(([voter, suspect]) => {
+          if (culpritNames.includes(suspect)) {
+            roundScores[voter] = 100;
+            newScores[voter] = (newScores[voter] || 0) + 100;
+          }
+        });
+      } else if (result === "spy_guessed") {
+        // Spy guessed the word correctly, spy gets +100
+        culpritNames.forEach((name) => {
+          roundScores[name] = 100;
+          newScores[name] = (newScores[name] || 0) + 100;
+        });
+      } else if (result === "spy_escaped" || result === "imposter_escaped") {
+        // Spy/Imposter escaped, they get +100
+        culpritNames.forEach((name) => {
+          roundScores[name] = 100;
+          newScores[name] = (newScores[name] || 0) + 100;
+        });
+      }
+
+      // Check for winner
+      let gameWinner = null;
+      Object.entries(newScores).forEach(([player, score]) => {
+        if (score >= state.targetScore && players.includes(player)) {
+          if (!gameWinner || score > newScores[gameWinner]) {
+            gameWinner = player;
+          }
+        }
+      });
+
+      // Save scores to localStorage
+      localStorage.setItem("aljasus_scores", JSON.stringify(newScores));
+
+      return {
+        ...state,
+        roundScores,
+        scores: newScores,
+        gameWinner,
+      };
+    }
+
+    case ACTIONS.START_NEXT_ROUND: {
+      return {
+        ...state,
+        currentScreen: "home",
+        currentPlayerIndex: 0,
+        selectedCategory: null,
+        selectedWord: null,
+        selectedPair: null,
+        spyIndices: [],
+        imposterIndex: null,
+        timeRemaining: state.timerDuration,
+        votes: {},
+        votingComplete: false,
+        spyGuess: null,
+        gameResult: null,
+        questionHistory: [],
+        roundScores: {},
+        roundNumber: state.roundNumber + 1,
+        gameWinner: null,
+      };
+    }
+
     case ACTIONS.RESET_GAME: {
       return {
         ...createInitialState(),
@@ -229,7 +385,33 @@ function gameReducer(state, action) {
         subMode: state.subMode,
         timerDuration: state.timerDuration,
         spyCount: state.spyCount,
+        targetScore: state.targetScore,
+        selectedGenre: state.selectedGenre,
         timeRemaining: state.timerDuration,
+        scores: state.scores,
+        roundNumber: state.roundNumber,
+      };
+    }
+
+    case ACTIONS.RESET_TOURNAMENT: {
+      // Reset all scores to 0
+      const resetScores = {};
+      state.players.forEach((player) => {
+        resetScores[player] = 0;
+      });
+      localStorage.setItem("aljasus_scores", JSON.stringify(resetScores));
+      return {
+        ...createInitialState(),
+        players: state.players,
+        gameMode: state.gameMode,
+        subMode: state.subMode,
+        timerDuration: state.timerDuration,
+        spyCount: state.spyCount,
+        targetScore: state.targetScore,
+        selectedGenre: state.selectedGenre,
+        timeRemaining: state.timerDuration,
+        scores: resetScores,
+        roundNumber: 1,
       };
     }
 
@@ -243,6 +425,18 @@ const GameContext = createContext(null);
 
 // Provider Component
 export function GameProvider({ children }) {
+  // Version check - clear localStorage if version mismatch
+  useEffect(() => {
+    const storedVersion = localStorage.getItem("app_version");
+    if (storedVersion !== CURRENT_VERSION) {
+      // Clear all app data for fresh start
+      localStorage.clear();
+      localStorage.setItem("app_version", CURRENT_VERSION);
+      // Reload to ensure clean state with new structure
+      window.location.reload();
+    }
+  }, []);
+
   // Use lazy initialization - third arg is init function
   const [state, dispatch] = useReducer(gameReducer, null, createInitialState);
 
@@ -275,10 +469,19 @@ export function GameProvider({ children }) {
           subMode: state.subMode,
           timerDuration: state.timerDuration,
           spyCount: state.spyCount,
+          targetScore: state.targetScore,
+          selectedGenre: state.selectedGenre,
         })
       );
     }
-  }, [state.gameMode, state.subMode, state.timerDuration, state.spyCount]);
+  }, [
+    state.gameMode,
+    state.subMode,
+    state.timerDuration,
+    state.spyCount,
+    state.targetScore,
+    state.selectedGenre,
+  ]);
 
   // Timer Effect
   useEffect(() => {
@@ -317,11 +520,29 @@ export function GameProvider({ children }) {
       dispatch({ type: ACTIONS.SET_SPY_COUNT, payload: count });
     }, []),
 
+    setTargetScore: useCallback((score) => {
+      dispatch({ type: ACTIONS.SET_TARGET_SCORE, payload: score });
+    }, []),
+
+    setSelectedGenre: useCallback((genre) => {
+      dispatch({ type: ACTIONS.SET_SELECTED_GENRE, payload: genre });
+    }, []),
+
     startGame: useCallback(() => {
       const playerCount = state.players.length;
 
       if (state.gameMode === "classic") {
-        const category = getRandomCategory("classic");
+        // Get category based on selected genre
+        let category;
+        if (state.selectedGenre === "random") {
+          category = getRandomCategory("classic");
+        } else {
+          category = getCategoryByName("classic", state.selectedGenre);
+          if (!category) {
+            category = getRandomCategory("classic");
+          }
+        }
+
         const word = getRandomWord(category);
 
         const spyIndices = [];
@@ -348,7 +569,17 @@ export function GameProvider({ children }) {
           },
         });
       } else {
-        const category = getRandomCategory("chameleon");
+        // Get category based on selected genre
+        let category;
+        if (state.selectedGenre === "random") {
+          category = getRandomCategory("chameleon");
+        } else {
+          category = getCategoryByName("chameleon", state.selectedGenre);
+          if (!category) {
+            category = getRandomCategory("chameleon");
+          }
+        }
+
         const pair = getRandomPair(category);
         const imposterIndex = Math.floor(Math.random() * playerCount);
 
@@ -363,7 +594,12 @@ export function GameProvider({ children }) {
           },
         });
       }
-    }, [state.players.length, state.gameMode, state.spyCount]),
+    }, [
+      state.players.length,
+      state.gameMode,
+      state.spyCount,
+      state.selectedGenre,
+    ]),
 
     setScreen: useCallback((screen) => {
       dispatch({ type: ACTIONS.SET_SCREEN, payload: screen });
@@ -427,8 +663,39 @@ export function GameProvider({ children }) {
       dispatch({ type: ACTIONS.SET_GAME_RESULT, payload: result });
     }, []),
 
+    calculateRoundScores: useCallback(
+      (result) => {
+        dispatch({
+          type: ACTIONS.CALCULATE_ROUND_SCORES,
+          payload: {
+            result,
+            votes: state.votes,
+            spyIndices: state.spyIndices,
+            imposterIndex: state.imposterIndex,
+            players: state.players,
+            gameMode: state.gameMode,
+          },
+        });
+      },
+      [
+        state.votes,
+        state.spyIndices,
+        state.imposterIndex,
+        state.players,
+        state.gameMode,
+      ]
+    ),
+
+    startNextRound: useCallback(() => {
+      dispatch({ type: ACTIONS.START_NEXT_ROUND });
+    }, []),
+
     resetGame: useCallback(() => {
       dispatch({ type: ACTIONS.RESET_GAME });
+    }, []),
+
+    resetTournament: useCallback(() => {
+      dispatch({ type: ACTIONS.RESET_TOURNAMENT });
     }, []),
 
     getMostVotedPlayer: useCallback(() => {
@@ -492,6 +759,13 @@ export function GameProvider({ children }) {
       );
       return category ? category.words : [];
     }, [state.gameMode, state.selectedCategory]),
+
+    getAllCategories: useCallback(
+      (mode) => {
+        return getAllCategories(mode || state.gameMode);
+      },
+      [state.gameMode]
+    ),
   };
 
   return (

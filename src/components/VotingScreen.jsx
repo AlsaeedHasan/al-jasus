@@ -9,7 +9,7 @@ import {
   Fingerprint,
 } from "lucide-react";
 import { useGame } from "../context/GameContext";
-import { Button, Card } from "./ui";
+import { Button, Card, PlayerName } from "./ui";
 
 export default function VotingScreen() {
   const { state, castVote, completeVoting, setScreen } = useGame();
@@ -109,7 +109,7 @@ export default function VotingScreen() {
             <Card className="mb-6 text-center">
               <p className="text-white/60 text-sm mb-1">دور التصويت</p>
               <h2 className="text-2xl font-bold gradient-text">
-                {currentVoter}
+                <PlayerName name={currentVoter} />
               </h2>
               <p className="text-white/40 text-sm mt-2">من تشك أنه الجاسوس؟</p>
             </Card>
@@ -157,7 +157,7 @@ export default function VotingScreen() {
                         }
                       />
                     </div>
-                    <span className="font-medium text-lg">{player}</span>
+                    <PlayerName name={player} className="font-medium text-lg" />
                   </div>
 
                   {selectedSuspect === player && (
@@ -209,15 +209,16 @@ export default function VotingScreen() {
             </motion.div>
 
             <h2 className="text-2xl font-bold mb-2 text-center">
-              تم تسجيل صوت {currentVoter}
+              مرر الجهاز إلى{" "}
+              <PlayerName name={state.players[currentVoterIndex + 1]} />
             </h2>
 
             <p className="text-white/60 mb-8 text-center">
-              مرر الجهاز إلى {state.players[currentVoterIndex + 1]}
+              تم تسجيل صوت <PlayerName name={currentVoter} />
             </p>
 
             <Button variant="primary" size="lg" onClick={handleNextVoter}>
-              أنا {state.players[currentVoterIndex + 1]} - جاهز
+              جاهز
             </Button>
           </motion.div>
         )}

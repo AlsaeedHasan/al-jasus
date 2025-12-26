@@ -71,7 +71,7 @@ export default function Logo({ size = "lg" }) {
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3 }}
       >
-        لعبة الغموض والمتعة
+        هتعرف تهبد صح؟
       </motion.p>
     </motion.div>
   );

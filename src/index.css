@@ -23,6 +23,7 @@
 
 html {
   background-color: #0f0d1a;
+  overscroll-behavior-y: none;
 }
 
 body {
@@ -33,6 +34,7 @@ body {
   background: linear-gradient(135deg, #0f0d1a 0%, #1e1b4b 50%, #2e2a5a 100%);
   color: white;
   overflow-x: hidden;
+  overscroll-behavior-y: none;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
 }
@@ -131,4 +133,17 @@ body {
 
 .safe-top {
   padding-top: env(safe-area-inset-top, 20px);
+}
+
+/* Prevent long-press context menu and text selection */
+@layer utilities {
+  .prevent-select {
+    -webkit-touch-callout: none; /* iOS Safari */
+    -webkit-user-select: none; /* Safari */
+    -khtml-user-select: none; /* Konqueror HTML */
+    -moz-user-select: none; /* Old versions of Firefox */
+    -ms-user-select: none; /* Internet Explorer/Edge */
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
 }

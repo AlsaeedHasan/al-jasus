@@ -40,10 +40,18 @@ export default function RoleCard({
     }
   };
 
+  // Prevent context menu on long press
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    return false;
+  };
+
   return (
     <div
-      className="relative w-full max-w-sm mx-auto select-none"
+      className="relative w-full max-w-sm mx-auto select-none prevent-select"
       style={{ perspective: "1000px" }}
+      onContextMenu={handleContextMenu}
     >
       {/* Card Container - This handles the 3D flip */}
       <motion.div
@@ -62,6 +70,7 @@ export default function RoleCard({
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerLeave}
         onPointerCancel={handlePointerCancel}
+        onContextMenu={handleContextMenu}
       >
         {/* Back of Card (Shows when NOT revealed - user sees this first) */}
         <div

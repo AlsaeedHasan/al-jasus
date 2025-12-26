@@ -7,7 +7,6 @@ import {
   Play,
   Settings,
   Clock,
-  UserMinus,
   VenetianMask,
   Palette,
   MessageCircle,
@@ -15,9 +14,12 @@ import {
   ChevronDown,
   Minus,
   Plus,
+  Trophy,
+  Folder,
+  Shuffle,
 } from "lucide-react";
 import { useGame } from "../context/GameContext";
-import { Button, Card, Input, Logo, Modal } from "./ui";
+import { Button, Card, Input, Logo, Modal, PlayerName } from "./ui";
 
 export default function SetupScreen() {
   const {
@@ -28,7 +30,10 @@ export default function SetupScreen() {
     setSubMode,
     setTimerDuration,
     setSpyCount,
+    setTargetScore,
+    setSelectedGenre,
     startGame,
+    getAllCategories,
   } = useGame();
 
   const [newPlayerName, setNewPlayerName] = useState("");
@@ -69,6 +74,16 @@ export default function SetupScreen() {
     { value: 300, label: "٥ دقائق" },
   ];
 
+  const targetScoreOptions = [
+    { value: 100, label: "١٠٠" },
+    { value: 200, label: "٢٠٠" },
+    { value: 300, label: "٣٠٠" },
+    { value: 500, label: "٥٠٠" },
+  ];
+
+  // Get categories based on current game mode
+  const categories = getAllCategories(state.gameMode);
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -84,6 +99,9 @@ export default function SetupScreen() {
     visible: { opacity: 1, y: 0 },
   };
 
+  // Calculate if there are any scores
+  const hasScores = Object.values(state.scores).some((score) => score > 0);
+
   return (
     <motion.div
       className="min-h-screen p-4 pb-8 safe-top safe-bottom"
@@ -98,6 +116,53 @@ export default function SetupScreen() {
       >
         <Logo size="md" />
       </motion.div>
+
+      {/* Round & Scores Banner */}
+      {hasScores && (
+        <motion.div variants={itemVariants}>
+          <Card className="mb-4 bg-gradient-to-r from-purple-900/50 to-orange-900/50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Trophy size={20} className="text-yellow-400" />
+                <span className="font-bold">الجولة {state.roundNumber}</span>
+              </div>
+              <div className="text-sm text-white/60">
+                الهدف: {state.targetScore} نقطة
+              </div>
+            </div>
+
+            {/* Mini Scoreboard */}
+            <div className="mt-3 pt-3 border-t border-white/10">
+              <div className="flex flex-wrap gap-2">
+                {state.players
+                  .slice()
+                  .sort(
+                    (a, b) => (state.scores[b] || 0) - (state.scores[a] || 0)
+                  )
+                  .slice(0, 4)
+                  .map((player, index) => (
+                    <div
+                      key={player}
+                      className={`
+                        px-3 py-1 rounded-full text-sm flex items-center gap-2
+                        ${
+                          index === 0
+                            ? "bg-yellow-500/20 text-yellow-300"
+                            : "bg-dark-700/50 text-white/70"
+                        }
+                      `}
+                    >
+                      <PlayerName name={player} />
+                      <span className="font-bold">
+                        {state.scores[player] || 0}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </Card>
+        </motion.div>
+      )}
 
       {/* Player Input */}
       <motion.div variants={itemVariants}>
@@ -152,7 +217,12 @@ export default function SetupScreen() {
                       <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-orange-500 flex items-center justify-center text-sm font-bold">
                         {index + 1}
                       </div>
-                      <span className="font-medium">{player}</span>
+                      <PlayerName name={player} className="font-medium" />
+                      {hasScores && (
+                        <span className="text-sm text-purple-400">
+                          ({state.scores[player] || 0})
+                        </span>
+                      )}
                     </div>
                     <motion.button
                       whileHover={{ scale: 1.1 }}
@@ -309,6 +379,45 @@ export default function SetupScreen() {
         </Card>
       </motion.div>
 
+      {/* Genre/Category Selection */}
+      <motion.div variants={itemVariants}>
+        <Card className="mb-4">
+          <div className="flex items-center gap-2 mb-4">
+            <Folder size={20} className="text-purple-400" />
+            <h2 className="text-lg font-bold">فئة الكلمات</h2>
+          </div>
+
+          <div className="relative">
+            <select
+              value={state.selectedGenre}
+              onChange={(e) => setSelectedGenre(e.target.value)}
+              className="w-full p-4 rounded-xl bg-dark-700/50 border border-white/10 text-white appearance-none cursor-pointer focus:outline-none focus:border-purple-500 transition-colors"
+            >
+              <option value="random">🎲 عشوائي (Random)</option>
+              {categories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={20}
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50 pointer-events-none"
+            />
+          </div>
+
+          {state.selectedGenre !== "random" && (
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-sm text-purple-400 mt-2 text-center"
+            >
+              سيتم استخدام فئة "{state.selectedGenre}" فقط
+            </motion.p>
+          )}
+        </Card>
+      </motion.div>
+
       {/* Settings Button */}
       <motion.div variants={itemVariants}>
         <Button
@@ -369,6 +478,36 @@ export default function SetupScreen() {
                 </motion.button>
               ))}
             </div>
+          </div>
+
+          {/* Target Score */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Trophy size={18} className="text-yellow-400" />
+              <span className="font-medium">هدف النقاط</span>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              {targetScoreOptions.map(({ value, label }) => (
+                <motion.button
+                  key={value}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setTargetScore(value)}
+                  className={`
+                    p-3 rounded-xl border text-sm transition-all
+                    ${
+                      state.targetScore === value
+                        ? "border-yellow-500 bg-yellow-500/20"
+                        : "border-white/10 bg-dark-700/30"
+                    }
+                  `}
+                >
+                  {label}
+                </motion.button>
+              ))}
+            </div>
+            <p className="text-center text-white/50 text-sm mt-2">
+              أول لاعب يصل إلى {state.targetScore} نقطة يفوز!
+            </p>
           </div>
 
           {/* Spy Count (only for classic mode) */}
