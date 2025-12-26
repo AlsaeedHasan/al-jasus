@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useGame } from "../context/GameContext";
 import { Button, Card, Input, Logo, Modal, PlayerName } from "./ui";
+import { getVipData } from "../data/vipList";
 
 export default function SetupScreen() {
   const {
@@ -42,7 +43,7 @@ export default function SetupScreen() {
   const [newPlayerName, setNewPlayerName] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [error, setError] = useState("");
-  const [vipToast, setVipToast] = useState(null);
+  const [vipToast, setVipToast] = useState(null); // { message, type }
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const inputRef = useRef(null);
 
@@ -60,10 +61,10 @@ export default function SetupScreen() {
     const trimmedName = newPlayerName.trim();
     addPlayer(trimmedName);
 
-    // Check if VIP player
-    const VIP_NAMES = ["سعيد", "السعيد", "saeed", "alsaeed"];
-    if (VIP_NAMES.includes(trimmedName.toLowerCase())) {
-      setVipToast("وسع للباشا عشان هيلعب 🔥👑");
+    // Check if VIP player using VIP_DATA
+    const vipData = getVipData(trimmedName);
+    if (vipData) {
+      setVipToast({ message: vipData.message, type: vipData.type });
       setTimeout(() => setVipToast(null), 4000);
     }
 
@@ -144,9 +145,15 @@ export default function SetupScreen() {
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: "spring", stiffness: 300 }}
           >
-            <div className="bg-gradient-to-r from-yellow-500 via-orange-500 to-red-500 px-6 py-4 rounded-2xl border-2 border-yellow-300 shadow-2xl shadow-orange-500/50">
+            <div
+              className={`px-6 py-4 rounded-2xl border-2 shadow-2xl ${
+                vipToast.type === "QUEEN"
+                  ? "bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 border-pink-300 shadow-pink-500/50"
+                  : "bg-gradient-to-r from-yellow-500 via-orange-500 to-red-500 border-yellow-300 shadow-orange-500/50"
+              }`}
+            >
               <p className="text-white text-xl font-bold drop-shadow-lg text-center whitespace-nowrap">
-                {vipToast}
+                {vipToast.message}
               </p>
             </div>
           </motion.div>

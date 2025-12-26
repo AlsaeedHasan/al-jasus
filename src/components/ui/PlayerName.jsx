@@ -1,20 +1,17 @@
 import { motion } from "framer-motion";
-import { Crown } from "lucide-react";
-
-// VIP names list (normalized to lowercase for comparison)
-const VIP_NAMES = ["سعيد", "السعيد", "saeed", "alsaeed"];
+import { Crown, Gem } from "lucide-react";
+import { getVipData } from "../../data/vipList";
 
 export default function PlayerName({ name, className = "" }) {
-  // Normalize name for comparison
-  const normalizedName = name?.trim().toLowerCase() || "";
-  const isVIP = VIP_NAMES.includes(normalizedName);
-
   if (!name) return null;
+
+  // Get VIP data for this player
+  const vipData = getVipData(name);
 
   return (
     <span className={`inline-flex items-center ${className}`}>
       <span>{name}</span>
-      {isVIP && (
+      {vipData && (
         <motion.span
           className="inline-flex items-center mr-1"
           animate={{
@@ -27,10 +24,17 @@ export default function PlayerName({ name, className = "" }) {
             ease: "easeInOut",
           }}
         >
-          <Crown
-            size={18}
-            className="w-5 h-5 text-yellow-400 fill-yellow-400 inline-block"
-          />
+          {vipData.type === "QUEEN" ? (
+            <Gem
+              size={18}
+              className="w-5 h-5 text-pink-400 fill-pink-400 inline-block"
+            />
+          ) : (
+            <Crown
+              size={18}
+              className="w-5 h-5 text-yellow-400 fill-yellow-400 inline-block"
+            />
+          )}
         </motion.span>
       )}
     </span>
