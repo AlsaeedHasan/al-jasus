@@ -17,6 +17,8 @@ import {
   Trophy,
   Folder,
   Shuffle,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 import { useGame } from "../context/GameContext";
 import { Button, Card, Input, Logo, Modal, PlayerName } from "./ui";
@@ -34,11 +36,14 @@ export default function SetupScreen() {
     setSelectedGenre,
     startGame,
     getAllCategories,
+    resetTournament,
   } = useGame();
 
   const [newPlayerName, setNewPlayerName] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [error, setError] = useState("");
+  const [vipToast, setVipToast] = useState(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const inputRef = useRef(null);
 
   const handleAddPlayer = () => {
@@ -52,7 +57,16 @@ export default function SetupScreen() {
       return;
     }
 
-    addPlayer(newPlayerName.trim());
+    const trimmedName = newPlayerName.trim();
+    addPlayer(trimmedName);
+
+    // Check if VIP player
+    const VIP_NAMES = ["سعيد", "السعيد", "saeed", "alsaeed"];
+    if (VIP_NAMES.includes(trimmedName.toLowerCase())) {
+      setVipToast("وسع للباشا عشان هيلعب 🔥👑");
+      setTimeout(() => setVipToast(null), 4000);
+    }
+
     setNewPlayerName("");
     setError("");
     inputRef.current?.focus();
@@ -102,6 +116,17 @@ export default function SetupScreen() {
   // Calculate if there are any scores
   const hasScores = Object.values(state.scores).some((score) => score > 0);
 
+  // Handle tournament reset - show confirmation modal
+  const handleResetTournament = () => {
+    setShowResetConfirm(true);
+  };
+
+  // Confirm reset and close modal
+  const confirmResetTournament = () => {
+    resetTournament();
+    setShowResetConfirm(false);
+  };
+
   return (
     <motion.div
       className="min-h-screen p-4 pb-8 safe-top safe-bottom"
@@ -109,6 +134,25 @@ export default function SetupScreen() {
       initial="hidden"
       animate="visible"
     >
+      {/* VIP Toast Notification */}
+      <AnimatePresence>
+        {vipToast && (
+          <motion.div
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-50"
+            initial={{ scale: 0, y: -50, rotate: -10 }}
+            animate={{ scale: 1, y: 0, rotate: 0 }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 300 }}
+          >
+            <div className="bg-gradient-to-r from-yellow-500 via-orange-500 to-red-500 px-6 py-4 rounded-2xl border-2 border-yellow-300 shadow-2xl shadow-orange-500/50">
+              <p className="text-white text-xl font-bold drop-shadow-lg text-center whitespace-nowrap">
+                {vipToast}
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Logo */}
       <motion.div
         variants={itemVariants}
@@ -446,6 +490,22 @@ export default function SetupScreen() {
         </Button>
       </motion.div>
 
+      {/* Reset Tournament Button */}
+      {hasScores && (
+        <motion.div variants={itemVariants}>
+          <Button
+            variant="secondary"
+            size="md"
+            fullWidth
+            icon={Trash2}
+            onClick={handleResetTournament}
+            className="mt-3 !bg-red-500/20 !border-red-500/50 hover:!bg-red-500/30 !text-red-400"
+          >
+            إنهاء الجيم
+          </Button>
+        </motion.div>
+      )}
+
       {/* Settings Modal */}
       <Modal
         isOpen={showSettings}
@@ -579,6 +639,58 @@ export default function SetupScreen() {
           </Button>
         </div>
       </Modal>
+
+      {/* Reset Confirmation Modal */}
+      <AnimatePresence>
+        {showResetConfirm && (
+          <motion.div
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowResetConfirm(false)}
+          >
+            <motion.div
+              className="bg-slate-900 border border-red-500/30 rounded-2xl p-6 max-w-sm w-full shadow-2xl"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Icon */}
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center">
+                  <AlertTriangle size={32} className="text-red-500" />
+                </div>
+              </div>
+
+              {/* Text */}
+              <h3 className="text-xl font-bold text-white text-center mb-2">
+                إنهاء الجيم؟
+              </h3>
+              <p className="text-gray-400 text-center mb-6">
+                هل أنت متأكد؟ هيتم مسح كل النقاط والبدء من جديد.
+              </p>
+
+              {/* Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowResetConfirm(false)}
+                  className="flex-1 py-3 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-medium transition-colors"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={confirmResetTournament}
+                  className="flex-1 py-3 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white font-medium transition-colors"
+                >
+                  إنهاء
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
